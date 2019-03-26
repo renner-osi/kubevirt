@@ -38,10 +38,13 @@ import (
 var bridgeFakeIP = "169.254.75.1%d/32"
 
 type BindMechanism interface {
+	// cache miss lookup netlink
 	discoverPodNetworkInterface() error
 	preparePodNetworkInterfaces() error
 	decorateConfig() error
+	// check file cache for interface details
 	loadCachedInterface(name string) (bool, error)
+	// set to var interfaceCacheFile = "/var/run/kubevirt-private/interface-cache-%s.json"
 	setCachedInterface(name string) error
 }
 
@@ -124,6 +127,14 @@ func getBinding(iface *v1.Interface, network *v1.Network, domain *api.Domain, po
 		return nil
 	}
 
+	if iface.Passthrough != nil {
+		vif := &VIF{Name: podInterfaceName}
+		return &PassthroughInterface{
+			iface: iface,
+			domain:              domain,
+			podInterfaceNum:     podInterfaceNum,
+			podInterfaceName:    podInterfaceName,
+	}
 	if iface.Bridge != nil {
 		vif := &VIF{Name: podInterfaceName}
 		populateMacAddress(vif, iface)
@@ -637,3 +648,90 @@ func (s *SlirpPodInterface) setCachedInterface(name string) error {
 	err := writeToCachedFile(&s.domain.Spec.QEMUCmd.QEMUArg[s.podInterfaceNum], qemuArgCacheFile, name)
 	return err
 }
+
+type PassthroughInterface struct {
+	iface               *v1.Interface
+	podNicLink       netlink.Link
+	domain           *api.Domain
+	podInterfaceNum  int
+	podInterfaceName string
+}
+/*
+-netdev
+tap,fd=25,id=hostnet0
+-device
+e1000,netdev=hostnet0,id=net0,mac=52:54:00:d0:46:47,bus=pci.0,addr=0x3
+*/
+
+func (p *PassthroughInterface) decorateConfig() error {
+	return nil
+}
+func (p *PassthroughInterface) discoverPodNetworkInterface() error {
+	link, err := Handler.LinkByName(p.podInterfaceName)
+	if err != nil {
+		log.Log.Reason(err).Errorf("failed to get a link for interface: %s", p.podInterfaceName)
+		return err
+	}
+	p.podNicLink = link
+
+
+	return nil
+	// s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{Value: "-device"})
+	// return nil
+}
+func (s *PassthroughInterface) preparePodNetworkInterfaces() error {
+	/*
+		-netdev tap,script=no,id=hostnet0 -device e1000,netdev=hostnet0,id=veth1,mac=52:54:00:d0:46:47,bus=pci.0,addr=0x3 \
+	-netdev tap,script=no,id=hostnet1 -device e1000,netdev=hostnet1,id=veth3,mac=52:54:00:40:29:ae,bus=pci.0,addr=0x4 \
+	-netdev tap,script=no,id=hostnet2 -device e1000,netdev=hostnet2,id=veth4,mac=52:54:00:f7:90:ca,bus=pci.0,addr=0x5 	\
+	*/
+	interfaces := s.domain.Spec.Devices.Interfaces
+	domainInterface := interfaces[s.podInterfaceNum]
+	s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{Value: "-netdev"})})
+	s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{
+		Value: fmt.Sprintf("tap,script=no,id=%s", s.iface.Name),
+	})
+	s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{Value: "-device"})})
+	s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{
+		Value: fmt.Sprintf("%s,netdev=%s,id=%s", domainInterface.Model.Type, s.iface.Name, s.podInterfaceName),
+	})
+
+	s.domain.Spec.Devices.Interfaces = append(interfaces[:s.podInterfaceNum], interfaces[s.podInterfaceNum+1:]...)
+	s.podInterfaceNum = len(s.domain.Spec.QEMUCmd.QEMUArg) - 1
+
+	return nil
+}
+func (s *PassthroughInterface) loadCachedInterface(name string) (bool, error) {
+	return false, nil
+}
+
+func (s *PassthroughInterface) setCachedInterface(name string) error {
+	err := writeToCachedFile(&s.domain.Spec.QEMUCmd.QEMUArg[s.podInterfaceNum], qemuArgCacheFile, name)
+	return err
+}
+
+/*
+
+
+func (s *SlirpPodInterface) loadCachedInterface(name string) (bool, error) {
+	var qemuArg api.Arg
+	interfaces := s.domain.Spec.Devices.Interfaces
+
+	isExist, err := readFromCachedFile(name, qemuArgCacheFile, &qemuArg)
+	if err != nil {
+		return false, err
+	}
+
+	if isExist {
+		// remove slirp interface from domain spec devices interfaces
+		interfaces = append(interfaces[:s.podInterfaceNum], interfaces[s.podInterfaceNum+1:]...)
+
+		// Add interface configuration to qemuArgs
+		s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, qemuArg)
+		return true, nil
+	}
+
+	return false, nil
+}
+
+*/

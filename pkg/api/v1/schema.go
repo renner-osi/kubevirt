@@ -869,10 +869,11 @@ type DHCPOptions struct {
 // ---
 // +k8s:openapi-gen=true
 type InterfaceBindingMethod struct {
-	Bridge     *InterfaceBridge     `json:"bridge,omitempty"`
-	Slirp      *InterfaceSlirp      `json:"slirp,omitempty"`
-	Masquerade *InterfaceMasquerade `json:"masquerade,omitempty"`
-	SRIOV      *InterfaceSRIOV      `json:"sriov,omitempty"`
+	Bridge      *InterfaceBridge      `json:"bridge,omitempty"`
+	Slirp       *InterfaceSlirp       `json:"slirp,omitempty"`
+	Masquerade  *InterfaceMasquerade  `json:"masquerade,omitempty"`
+	SRIOV       *InterfaceSRIOV       `json:"sriov,omitempty"`
+	Passthrough *InterfacePassthrough `json:"passthrough,omitempty"`
 }
 
 // ---
@@ -890,6 +891,10 @@ type InterfaceMasquerade struct{}
 // ---
 // +k8s:openapi-gen=true
 type InterfaceSRIOV struct{}
+
+// ---
+// +k8s:openapi-gen=true
+type InterfacePassthrough struct{}
 
 // Port repesents a port to expose from the virtual machine.
 // Default protocol TCP.
