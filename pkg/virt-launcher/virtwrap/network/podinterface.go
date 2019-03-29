@@ -126,9 +126,10 @@ func getBinding(iface *v1.Interface, network *v1.Network, domain *api.Domain, po
 
 	if iface.Passthrough != nil {
 		return &PassthroughPodInterface{
-			iface: iface,
-			domain:              domain,
-			podInterfaceNum:     podInterfaceNum,
+			iface:           iface,
+			domain:          domain,
+			podInterfaceNum: podInterfaceNum,
+		}
 	}
 	if iface.Bridge != nil {
 		vif := &VIF{Name: podInterfaceName}

@@ -31,7 +31,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	networkv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
-	virtconfig "github.com/kubevirt/kubevirt/pkg/virt-config"
 
 	v1 "kubevirt.io/kubevirt/pkg/api/v1"
 	"kubevirt.io/kubevirt/pkg/config"
@@ -159,14 +158,14 @@ func isPassthroughVmi(vmi *v1.VirtualMachineInstance) bool {
 	return false
 }
 
-func IsCPUNodeDiscoveryEnabled(store cache.Store) bool {
-	if value, err := getConfigMapEntry(store, virtconfig.FeatureGatesKey); err != nil {
-		return false
-	} else if strings.Contains(value, virtconfig.CPUNodeDiscoveryGate) {
-		return true
-	}
-	return false
-}
+// func IsCPUNodeDiscoveryEnabled(store cache.Store) bool {
+// 	if value, err := getConfigMapEntry(store, virtconfig.FeatureGatesKey); err != nil {
+// 		return false
+// 	} else if strings.Contains(value, virtconfig.CPUNodeDiscoveryGate) {
+// 		return true
+// 	}
+// 	return false
+// }
 
 func CPUModelLabelFromCPUModel(vmi *v1.VirtualMachineInstance) (label string, err error) {
 	if vmi.Spec.Domain.CPU == nil || vmi.Spec.Domain.CPU.Model == "" {
