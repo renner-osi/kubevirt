@@ -127,14 +127,6 @@ func getBinding(iface *v1.Interface, network *v1.Network, domain *api.Domain, po
 		return nil
 	}
 
-	if iface.Passthrough != nil {
-		vif := &VIF{Name: podInterfaceName}
-		return &PassthroughInterface{
-			iface: iface,
-			domain:              domain,
-			podInterfaceNum:     podInterfaceNum,
-			podInterfaceName:    podInterfaceName,
-	}
 	if iface.Bridge != nil {
 		vif := &VIF{Name: podInterfaceName}
 		populateMacAddress(vif, iface)
@@ -158,6 +150,14 @@ func getBinding(iface *v1.Interface, network *v1.Network, domain *api.Domain, po
 	}
 	if iface.Slirp != nil {
 		return &SlirpPodInterface{iface: iface, domain: domain, podInterfaceNum: podInterfaceNum}, nil
+	}
+	if iface.Passthrough != nil {
+		vif := &VIF{Name: podInterfaceName}
+		return &PassthroughInterface{
+			iface: iface,
+			domain:              domain,
+			podInterfaceNum:     podInterfaceNum,
+			podInterfaceName:    podInterfaceName,
 	}
 	return nil, fmt.Errorf("Not implemented")
 }
@@ -663,7 +663,8 @@ tap,fd=25,id=hostnet0
 e1000,netdev=hostnet0,id=net0,mac=52:54:00:d0:46:47,bus=pci.0,addr=0x3
 */
 
-func (p *PassthroughInterface) decorateConfig() error {
+func (s *PassthroughInterface) decorateConfig() error {
+	s.domain.Spec.QEMUCmd.QEMUArg[s.podInterfaceNum].Value += fmt.Sprintf(",id=%s", s.iface.Name)
 	return nil
 }
 func (p *PassthroughInterface) discoverPodNetworkInterface() error {

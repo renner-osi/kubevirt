@@ -1,0 +1,118 @@
+<domain type='kvm'>
+  <name>default_vm-cirros</name>
+  <uuid>0d2a2043-41c0-59c3-9b17-025022203668</uuid>
+  <metadata>
+    <kubevirt xmlns="http://kubevirt.io">
+      <uid>8b2f3d8f-5014-11e9-bec7-525500d15501</uid>
+      <graceperiod>
+        <deletionGracePeriodSeconds>0</deletionGracePeriodSeconds>
+      </graceperiod>
+    </kubevirt>
+  </metadata>
+  <memory unit='KiB'>1000000</memory>
+  <currentMemory unit='KiB'>1000000</currentMemory>
+  <vcpu placement='static'>1</vcpu>
+  <iothreads>1</iothreads>
+  <sysinfo type='smbios'>
+    <system>
+      <entry name='uuid'>0d2a2043-41c0-59c3-9b17-025022203668</entry>
+    </system>
+  </sysinfo>
+  <os>
+    <type arch='x86_64' machine='pc-q35-3.1'>hvm</type>
+    <boot dev='hd'/>
+  </os>
+  <features>
+    <acpi/>
+  </features>
+  <cpu mode='host-model' check='partial'>
+    <model fallback='allow'/>
+    <topology sockets='1' cores='1' threads='1'/>
+  </cpu>
+  <clock offset='utc'/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='raw' cache='none'/>
+      <source file='/var/run/kubevirt-ephemeral-disks/container-disk-data/default/vm-cirros/disk_containerdisk/disk-image.raw'/>
+      <target dev='vda' bus='virtio'/>
+      <alias name='ua-containerdisk'/>
+      <address type='pci' domain='0x0000' bus='0x04' slot='0x00' function='0x0'/>
+    </disk>
+    <controller type='usb' index='0' model='none'/>
+    <controller type='sata' index='0'>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x1f' function='0x2'/>
+    </controller>
+    <controller type='pci' index='0' model='pcie-root'/>
+    <controller type='pci' index='1' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='1' port='0x10'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0' multifunction='on'/>
+    </controller>
+    <controller type='pci' index='2' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='2' port='0x11'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x1'/>
+    </controller>
+    <controller type='pci' index='3' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='3' port='0x12'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x2'/>
+    </controller>
+    <controller type='pci' index='4' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='4' port='0x13'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x3'/>
+    </controller>
+    <controller type='pci' index='5' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='5' port='0x14'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x4'/>
+    </controller>
+    <controller type='virtio-serial' index='0'>
+      <address type='pci' domain='0x0000' bus='0x03' slot='0x00' function='0x0'/>
+    </controller>
+    <interface type='bridge'>
+      <mac address='32:45:b3:d6:26:db'/>
+      <source bridge='k6t-eth0'/>
+      <model type='virtio'/>
+      <mtu size='1450'/>
+      <alias name='ua-default'/>
+      <address type='pci' domain='0x0000' bus='0x01' slot='0x00' function='0x0'/>
+    </interface>
+    <interface type='direct'>
+      <mac address='52:54:00:71:ac:16'/>
+      <source dev='net1' mode='passthrough'/>
+      <model type='virtio'/>
+      <alias name='ua-ptp'/>
+      <address type='pci' domain='0x0000' bus='0x02' slot='0x00' function='0x0'/>
+    </interface>
+    <serial type='unix'>
+      <source mode='bind' path='/var/run/kubevirt-private/8b2f3d8f-5014-11e9-bec7-525500d15501/virt-serial0'/>
+      <target type='isa-serial' port='0'>
+        <model name='isa-serial'/>
+      </target>
+    </serial>
+    <console type='unix'>
+      <source mode='bind' path='/var/run/kubevirt-private/8b2f3d8f-5014-11e9-bec7-525500d15501/virt-serial0'/>
+      <target type='serial' port='0'/>
+    </console>
+    <channel type='unix'>
+      <target type='virtio' name='org.qemu.guest_agent.0'/>
+      <address type='virtio-serial' controller='0' bus='0' port='1'/>
+    </channel>
+    <input type='mouse' bus='ps2'/>
+    <input type='keyboard' bus='ps2'/>
+    <graphics type='vnc' socket='/var/run/kubevirt-private/8b2f3d8f-5014-11e9-bec7-525500d15501/virt-vnc'>
+      <listen type='socket' socket='/var/run/kubevirt-private/8b2f3d8f-5014-11e9-bec7-525500d15501/virt-vnc'/>
+    </graphics>
+    <video>
+      <model type='vga' vram='16384' heads='1' primary='yes'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x0'/>
+    </video>
+    <memballoon model='none'/>
+  </devices>
+</domain>

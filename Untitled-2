@@ -1,0 +1,95 @@
+make cluster-sync
+cluster/kubectl.sh get po 
+cluster/kubectl.sh apply -f t.yml
+cluster/kubectl.sh get po | grep -i virt-launch | awk '{print $1}' | xargs cluster/kubectl.sh logs -c compute
+
+https://bugs.launchpad.net/maas/+bug/1788952
+https://github.com/libvirt/libvirt/blob/9d399be9496388fd7538904763bcbdf5d29f10d9/src/util/virnetdevmacvlan.c#L447
+Instead, libvirt would need to look up the expected major/minor number for the tap device, and ensure it has been created before trying to open it. The major/minor number can be looked up in sysfs, such as:
+
+    /sys/class/net/{ifname}/macvtap/tap{ifindex}/dev
+
+
+    <interface type='direct'>
+      <mac address='52:54:00:cf:9f:d0'/>
+      <source dev='net1' mode='passthrough'/>
+      <model type='virtio-net-pci'/>
+      <alias name='ua-ptp'/>
+      <address type='pci' domain='0x0000' bus='0x03' slot='0x01' function='0x0'/>
+    </interface>
+
+
+
+[root@vm-cirros /]#
+[root@vm-cirros /]# virsh nodedev-list --cap net
+net_eth0_5e_9b_9f_b3_27_ff
+net_lo_00_00_00_00_00_00
+
+[root@vm-cirros /]#
+[root@vm-cirros /]#
+[root@vm-cirros /]#
+[root@vm-cirros /]# virsh nodedev-dumpxml net_eth0_5e_9b_9f_b3_27_ff
+<device>
+  <name>net_eth0_5e_9b_9f_b3_27_ff</name>
+  <path>/sys/devices/virtual/net/eth0</path>
+  <parent>computer</parent>
+  <capability type='net'>
+    <interface>eth0</interface>
+    <address>5e:9b:9f:b3:27:ff</address>
+    <link speed='10000' state='up'/>
+    <feature name='rx'/>
+    <feature name='tx'/>
+    <feature name='sg'/>
+    <feature name='tso'/>
+    <feature name='gso'/>
+    <feature name='gro'/>
+    <feature name='rxvlan'/>
+    <feature name='txvlan'/>
+    <feature name='txudptnl'/>
+    <capability type='80203'/>
+  </capability>
+</device>
+
+
+
+cluster/kubectl.sh get po | grep -i virt-launch | awk '{print $1}' |  xargs -i cluster/kubectl.sh exec -it -c compute {} -- uname
+
+qemu: Supported NIC models: e1000,e1000-82544gc,e1000-82545em,e1000e,i82550,i82551,i82557a,i82557b,i82557c,i82558a,i82558b,i82559a,i82559b,i82559c,i82559er,i82562,i82801,ne2k_pci,pcnet,pvrdma,rocker,rtl8139,virtio-net-pci,vmxnet3
+
+{"component":"virt-launcher","level":"warning","msg":"bind iface \u0026{Name:ptp Model: InterfaceBindingMethod:{Bridge:\u003cnil\u003e Slirp:\u003cnil\u003e Masquerade:\u003cnil\u003e SRIOV:\u003cnil\u003e Passthrough:0x220e378} Ports:[] MacAddress: BootOrder:\u003cnil\u003e PciAddress: DHCPOptions:\u003cnil\u003e}","pos":"podinterface.go:159","timestamp":"2019-03-26T22:48:13.567440Z"}
+{"component":"virt-launcher","level":"warning","msg":"inside passthrough bind iface \u0026{Name:ptp Model: InterfaceBindingMethod:{Bridge:\u003cnil\u003e Slirp:\u003cnil\u003e Masquerade:\u003cnil\u003e SRIOV:\u003cnil\u003e Passthrough:0x220e378} Ports:[] MacAddress: BootOrder:\u003cnil\u003e PciAddress: DHCPOptions:\u003cnil\u003e}","pos":"podinterface.go:161","timestamp":"2019-03-26T22:48:13.567457Z"}
+{"component":"virt-launcher","level":"warning","msg":"Driver binding is \u0026{iface:0xc00060a090 podNicLink:\u003cnil\u003e domain:0xc00053d200 podInterfaceNum:1 podInterfaceName:net1}","pos":"podinterface.go:78","timestamp":"2019-03-26T22:48:13.567470Z"}
+{"component":"virt-launcher","level":"warning","msg":"p discover pod net int  \u0026{iface:0xc00060a090 podNicLink:\u003cnil\u003e domain:0xc00053d200 podInterfaceNum:1 podInterfaceName:net1}","pos":"podinterface.go:695","timestamp":"2019-03-26T22:48:13.567482Z"}
+{"component":"virt-launcher","level":"warning","msg":"p podlink \u0026{LinkAttrs:{Index:5 MTU:1500 TxQLen:0 Name:net1 HardwareAddr:02:00:00:f9:4e:1e Flags:up|broadcast|multicast RawFlags:69699 ParentIndex:4 MasterIndex:0 Namespace:\u003cnil\u003e Alias: Statistics:0xc0006570e8 Promisc:0 Xdp:\u003cnil\u003e EncapType:ether Protinfo:\u003cnil\u003e OperState:up NetNsID:0 NumTxQueues:0 NumRxQueues:0} PeerName:}","pos":"podinterface.go:702","timestamp":"2019-03-26T22:48:13.567551Z"}
+{"component":"virt-launcher","level":"warning","msg":"interfaces [{Address:\u003cnil\u003e Type:bridge TrustGuestRxFilters: Source:{Network: Device: Bridge:k6t-eth0 Mode: Address:\u003cnil\u003e} Target:\u003cnil\u003e Model:0xc0005d9d40 MAC:0xc0003bcba0 MTU:0xc0003bcb90 BandWidth:\u003cnil\u003e BootOrder:\u003cnil\u003e LinkState:\u003cnil\u003e FilterRef:\u003cnil\u003e Alias:0xc0005d9d50 Driver:\u003cnil\u003e} {Address:\u003cnil\u003e Type: TrustGuestRxFilters: Source:{Network: Device: Bridge: Mode: Address:\u003cnil\u003e} Target:\u003cnil\u003e Model:0xc0005d9d60 MAC:\u003cnil\u003e MTU:\u003cnil\u003e BandWidth:\u003cnil\u003e BootOrder:\u003cnil\u003e LinkState:\u003cnil\u003e FilterRef:\u003cnil\u003e Alias:0xc0005d9d70 Driver:\u003cnil\u003e}]","pos":"podinterface.go:724","timestamp":"2019-03-26T22:48:13.567589Z"}
+{"component":"virt-launcher","level":"warning","msg":"interfaceNum 1","pos":"podinterface.go:725","timestamp":"2019-03-26T22:48:13.567611Z"}
+{"component":"virt-launcher","level":"warning","msg":"domainInterface {Address:\u003cnil\u003e Type: TrustGuestRxFilters: Source:{Network: Device: Bridge: Mode: Address:\u003cnil\u003e} Target:\u003cnil\u003e Model:0xc0005d9d60 MAC:\u003cnil\u003e MTU:\u003cnil\u003e BandWidth:\u003cnil\u003e BootOrder:\u003cnil\u003e LinkState:\u003cnil\u003e FilterRef:\u003cnil\u003e Alias:0xc0005d9d70 Driver:\u003cnil\u003e}","pos":"podinterface.go:728","timestamp":"2019-03-26T22:48:13.567627Z"}
+{"component":"virt-launcher","level":"warning","msg":"*api.Address      \u003cnil\u003e","pos":"podinterface.go:730","timestamp":"2019-03-26T22:48:13.567639Z"}
+{"component":"virt-launcher","level":"warning","msg":"string      ","pos":"podinterface.go:731","timestamp":"2019-03-26T22:48:13.567651Z"}
+{"component":"virt-launcher","level":"warning","msg":"string      ","pos":"podinterface.go:732","timestamp":"2019-03-26T22:48:13.567661Z"}
+{"component":"virt-launcher","level":"warning","msg":"api.InterfaceSource      {Network: Device: Bridge: Mode: Address:\u003cnil\u003e}","pos":"podinterface.go:733","timestamp":"2019-03-26T22:48:13.567683Z"}
+{"component":"virt-launcher","level":"warning","msg":"*api.InterfaceTarget      \u003cnil\u003e","pos":"podinterface.go:734","timestamp":"2019-03-26T22:48:13.567696Z"}
+{"component":"virt-launcher","level":"warning","msg":"*api.Model      \u0026{Type:virtio}","pos":"podinterface.go:735","timestamp":"2019-03-26T22:48:13.567707Z"}
+{"component":"virt-launcher","level":"warning","msg":"*api.MAC      \u003cnil\u003e","pos":"podinterface.go:736","timestamp":"2019-03-26T22:48:13.567718Z"}
+{"component":"virt-launcher","level":"warning","msg":"*api.MTU      \u003cnil\u003e","pos":"podinterface.go:737","timestamp":"2019-03-26T22:48:13.567729Z"}
+{"component":"virt-launcher","level":"warning","msg":"*api.BandWidth      \u003cnil\u003e","pos":"podinterface.go:738","timestamp":"2019-03-26T22:48:13.567739Z"}
+{"component":"virt-launcher","level":"warning","msg":"*api.BootOrder      \u003cnil\u003e","pos":"podinterface.go:739","timestamp":"2019-03-26T22:48:13.567750Z"}
+{"component":"virt-launcher","level":"warning","msg":"*api.LinkState      \u003cnil\u003e","pos":"podinterface.go:740","timestamp":"2019-03-26T22:48:13.567763Z"}
+{"component":"virt-launcher","level":"warning","msg":"*api.FilterRef      \u003cnil\u003e","pos":"podinterface.go:741","timestamp":"2019-03-26T22:48:13.567775Z"}
+{"component":"virt-launcher","level":"warning","msg":"*api.Alias      \u0026{Name:ptp}","pos":"podinterface.go:742","timestamp":"2019-03-26T22:48:13.567788Z"}
+{"component":"virt-launcher","level":"warning","msg":"*api.InterfaceDriver      \u003cnil\u003e","pos":"podinterface.go:743","timestamp":"2019-03-26T22:48:13.567798Z"}
+
+{"component":"virt-launcher","level":"info","msg":"Driver cache mode for /var/run/kubevirt-ephemeral-disks/container-disk-data/default/vm-cirros/disk_containerdisk/disk-image.raw set to none","pos":"converter.go:166","timestamp":"2019-03-26T22:48:13.567826Z"}
+
+{"component":"virt-launcher","level":"info","msg":"Starting SingleClientDHCPServer","pos":"dhcp.go:64","timestamp":"2019-03-26T22:48:13.569678Z"}
+
+{"component":"virt-launcher","kind":"","level":"info","msg":"Domain defined.","name":"vm-cirros","namespace":"default","pos":"manager.go:801","timestamp":"2019-03-26T22:48:13.572108Z","uid":"347a4488-5019-11e9-bec7-525500d15501"}
+{"component":"virt-launcher","level":"info","msg":"DomainLifecycle event 0 with reason 0 received","pos":"client.go:203","timestamp":"2019-03-26T22:48:13.572198Z"}
+{"component":"virt-launcher","level":"error","msg":"internal error: Unable to get DBus system bus connection: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory","pos":"virDBusGetSystemBus:110","subcomponent":"libvirt","timestamp":"2019-03-26T22:48:13.573000Z"}
+{"component":"virt-launcher","level":"error","msg":"cannot open macvtap tap device /dev/tap8: No such file or directory","pos":"virNetDevMacVLanTapOpen:389","subcomponent":"libvirt","timestamp":"2019-03-26T22:48:13.778000Z"}
+{"component":"virt-launcher","kind":"","level":"error","msg":"Starting the VirtualMachineInstance failed.","name":"vm-cirros","namespace":"default","pos":"manager.go:829","reason":"virError(Code=38, Domain=11, Message='cannot open macvtap tap device /dev/tap8: No such file or directory')","timestamp":"2019-03-26T22:48:13.814073Z","uid":"347a4488-5019-11e9-bec7-525500d15501"}
+{"component":"virt-launcher","kind":"","level":"error","msg":"Failed to sync vmi","name":"vm-cirros","namespace":"default","pos":"server.go:123","reason":"virError(Code=38, Domain=11, Message='cannot open macvtap tap device /dev/tap8: No such file or directory')","timestamp":"2019-03-26T22:48:13.815492Z","uid":"347a4488-5019-11e9-bec7-525500d15501"}
+{"component":"virt-launcher","level":"info","msg":"kubevirt domain status: Shutoff(5):Failed(6)","pos":"client.go:134","timestamp":"2019-03-26T22:48:13.815829Z"}
+{"component":"virt-launcher","level":"info","msg":"Detected domain with UUID 0d2a2043-41c0-59c3-9b17-025022203668","pos":"virt-launcher.go:243","timestamp":"2019-03-26T22:48:13.817763Z"}
+{"component":"virt-launcher","level":"info","msg":"Monitoring loop: rate 1s start timeout 5m0s","pos":"monitor.go:251","timestamp":"2019-03-26T22:48:13.817796Z"}
+{"component":"virt-launcher","level":"info","msg":"processed event","pos":"client.go:190","timestamp":"2019-03-26T22:48:13.818159Z"}
