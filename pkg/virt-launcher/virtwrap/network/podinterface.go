@@ -129,7 +129,7 @@ func getBinding(iface *v1.Interface, network *v1.Network, domain *api.Domain, po
 			iface:           iface,
 			domain:          domain,
 			podInterfaceNum: podInterfaceNum,
-		}
+		}, nil
 	}
 	if iface.Bridge != nil {
 		vif := &VIF{Name: podInterfaceName}
@@ -181,8 +181,8 @@ func (p *PassthroughPodInterface) preparePodNetworkInterfaces() error {
 }
 
 func (p *PassthroughPodInterface) decorateConfig() error {
-	b.domain.Spec.Devices.Interfaces[b.podInterfaceNum].Type = "direct"
-	b.domain.Spec.Devices.Interfaces[b.podInterfaceNum].Source = api.InterfaceSource{Device: p.podNicLink.Attrs().Name, Mode: "passthrough"}
+	p.domain.Spec.Devices.Interfaces[p.podInterfaceNum].Type = "direct"
+	p.domain.Spec.Devices.Interfaces[p.podInterfaceNum].Source = api.InterfaceSource{Device: p.podNicLink.Attrs().Name, Mode: "passthrough"}
 	return nil
 }
 
