@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	networkv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	virtconfig "github.com/kubevirt/kubevirt/pkg/virt-config"
 
 	v1 "kubevirt.io/kubevirt/pkg/api/v1"
 	"kubevirt.io/kubevirt/pkg/config"
@@ -43,7 +44,6 @@ import (
 	"kubevirt.io/kubevirt/pkg/util/hardware"
 	"kubevirt.io/kubevirt/pkg/util/net/dns"
 	"kubevirt.io/kubevirt/pkg/util/types"
-	"kubevirt.io/kubevirt/pkg/virt-config"
 )
 
 const configMapName = "kubevirt-config"
@@ -142,6 +142,15 @@ func GetlessPVCSpaceToleration(store cache.Store) (toleration int, err error) {
 }
 
 func isSRIOVVmi(vmi *v1.VirtualMachineInstance) bool {
+	for _, iface := range vmi.Spec.Domain.Devices.Interfaces {
+		if iface.SRIOV != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func isPassthroughVmi(vmi *v1.VirtualMachineInstance) bool {
 	for _, iface := range vmi.Spec.Domain.Devices.Interfaces {
 		if iface.SRIOV != nil {
 			return true
@@ -256,6 +265,59 @@ func (t *templateService) RenderLaunchManifest(vmi *v1.VirtualMachineInstance) (
 		Name:      "libvirt-runtime",
 		MountPath: "/var/run/libvirt",
 	})
+	if isPassthroughVmi(vmi) {
+		// libvirt needs this volume to unbind the device from kernel
+		// driver, and register it with vfio userspace driver
+		volumeMounts = append(volumeMounts, k8sv1.VolumeMount{
+			Name:      "pci-bus",
+			MountPath: "/sys/bus/pci/",
+		})
+		volumes = append(volumes, k8sv1.Volume{
+			Name: "pci-bus",
+			VolumeSource: k8sv1.VolumeSource{
+				HostPath: &k8sv1.HostPathVolumeSource{
+					Path: "/sys/bus/pci/",
+				},
+			},
+		})
+
+		// libvirt needs this volume to determine iommu group assigned
+		// to the device
+		volumeMounts = append(volumeMounts, k8sv1.VolumeMount{
+			Name:      "pci-devices",
+			MountPath: "/sys/devices/",
+		})
+		volumes = append(volumes, k8sv1.Volume{
+			Name: "pci-devices",
+			VolumeSource: k8sv1.VolumeSource{
+				HostPath: &k8sv1.HostPathVolumeSource{
+					Path: "/sys/devices/",
+				},
+			},
+		})
+
+		// libvirt uses vfio-pci to pass host devices through
+		volumeMounts = append(volumeMounts, k8sv1.VolumeMount{
+			Name:      "dev-passthrough",
+			MountPath: "/dev/",
+		})
+		volumes = append(volumes, k8sv1.Volume{
+			Name: "dev-passthrough",
+			VolumeSource: k8sv1.VolumeSource{
+				HostPath: &k8sv1.HostPathVolumeSource{
+					Path: "/dev/",
+				},
+			},
+		})
+
+		// todo: revisit when SR-IOV DP registers /dev/vfio/NN with pod
+		// device group:
+		// https://github.com/intel/sriov-network-device-plugin/pull/26
+		//
+		// Run virt-launcher compute container privileged to allow qemu
+		// to open /dev/vfio/NN for PCI passthrough
+		privileged = true
+	}
 
 	if isSRIOVVmi(vmi) {
 		// libvirt needs this volume to unbind the device from kernel
