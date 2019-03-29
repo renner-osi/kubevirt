@@ -124,6 +124,12 @@ func getBinding(iface *v1.Interface, network *v1.Network, domain *api.Domain, po
 		return nil
 	}
 
+	if iface.Passthrough != nil {
+		return &PassthroughPodInterface{
+			iface: iface,
+			domain:              domain,
+			podInterfaceNum:     podInterfaceNum,
+	}
 	if iface.Bridge != nil {
 		vif := &VIF{Name: podInterfaceName}
 		populateMacAddress(vif, iface)
@@ -152,14 +158,10 @@ func getBinding(iface *v1.Interface, network *v1.Network, domain *api.Domain, po
 }
 
 type PassthroughPodInterface struct {
-	vif                 *VIF
-	iface               *v1.Interface
-	podNicLink          netlink.Link
-	domain              *api.Domain
-	isLayer2            bool
-	podInterfaceNum     int
-	podInterfaceName    string
-	bridgeInterfaceName string
+	iface           *v1.Interface
+	podNicLink      netlink.Link
+	domain          *api.Domain
+	podInterfaceNum int
 }
 
 func (p *PassthroughPodInterface) discoverPodNetworkInterface() error {
@@ -170,167 +172,25 @@ func (p *PassthroughPodInterface) discoverPodNetworkInterface() error {
 	}
 	b.podNicLink = link
 
-	// get IP address
-	addrList, err := Handler.AddrList(b.podNicLink, netlink.FAMILY_V4)
-	if err != nil {
-		log.Log.Reason(err).Errorf("failed to get an ip address for %s", b.podInterfaceName)
-		return err
-	}
-	if len(b.vif.MAC) == 0 {
-		// Get interface MAC address
-		mac, err := Handler.GetMacDetails(b.podInterfaceName)
-		if err != nil {
-			log.Log.Reason(err).Errorf("failed to get MAC for %s", b.podInterfaceName)
-			return err
-		}
-		b.vif.MAC = mac
-	}
-
-	if b.podNicLink.Attrs().MTU < 0 || b.podNicLink.Attrs().MTU > 65535 {
-		return fmt.Errorf("MTU value out of range ")
-	}
-
-	// Get interface MTU
-	b.vif.Mtu = uint16(b.podNicLink.Attrs().MTU)
-
-	if !b.isLayer2 {
-		// Handle interface routes
-		if err := b.setInterfaceRoutes(); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
 func (p *PassthroughPodInterface) preparePodNetworkInterfaces() error {
-	// Set interface link to down to change its MAC address
-	if err := Handler.LinkSetDown(b.podNicLink); err != nil {
-		log.Log.Reason(err).Errorf("failed to bring link down for interface: %s", b.podInterfaceName)
-		return err
-	}
-
-	if _, err := Handler.SetRandomMac(b.podInterfaceName); err != nil {
-		return err
-	}
-
-	if err := Handler.LinkSetUp(b.podNicLink); err != nil {
-		log.Log.Reason(err).Errorf("failed to bring link up for interface: %s", b.podInterfaceName)
-		return err
-	}
-
-	if err := b.createBridge(); err != nil {
-		return err
-	}
-
-	if !b.isLayer2 {
-		// Remove IP from POD interface
-		err := Handler.AddrDel(b.podNicLink, &b.vif.IP)
-
-		if err != nil {
-			log.Log.Reason(err).Errorf("failed to delete address for interface: %s", b.podInterfaceName)
-			return err
-		}
-
-		b.startDHCPServer()
-	}
-
-	if err := Handler.LinkSetLearningOff(b.podNicLink); err != nil {
-		log.Log.Reason(err).Errorf("failed to disable mac learning for interface: %s", b.podInterfaceName)
-		return err
-	}
-
 	return nil
 }
 
-func (p *PassthroughPodInterface) startDHCPServer() {
-	// Start DHCP Server
-	fakeServerAddr, _ := netlink.ParseAddr(fmt.Sprintf(bridgeFakeIP, b.podInterfaceNum))
-	Handler.StartDHCP(b.vif, fakeServerAddr, b.bridgeInterfaceName, b.iface.DHCPOptions)
-}
-
 func (p *PassthroughPodInterface) decorateConfig() error {
-	b.domain.Spec.Devices.Interfaces[b.podInterfaceNum].MTU = &api.MTU{Size: strconv.Itoa(b.podNicLink.Attrs().MTU)}
-	b.domain.Spec.Devices.Interfaces[b.podInterfaceNum].MAC = &api.MAC{MAC: b.vif.MAC.String()}
-
+	b.domain.Spec.Devices.Interfaces[b.podInterfaceNum].Type = "direct"
+	b.domain.Spec.Devices.Interfaces[b.podInterfaceNum].Source = api.InterfaceSource{Device: p.podNicLink.Attrs().Name, Mode: "passthrough"}
 	return nil
 }
 
 func (p *PassthroughPodInterface) loadCachedInterface(name string) (bool, error) {
-	var ifaceConfig api.Interface
-
-	isExist, err := readFromCachedFile(name, interfaceCacheFile, &ifaceConfig)
-	if err != nil {
-		return false, err
-	}
-
-	if isExist {
-		b.domain.Spec.Devices.Interfaces[b.podInterfaceNum] = ifaceConfig
-		return true, nil
-	}
-
 	return false, nil
 }
 
 func (p *PassthroughPodInterface) setCachedInterface(name string) error {
-	err := writeToCachedFile(&b.domain.Spec.Devices.Interfaces[b.podInterfaceNum], interfaceCacheFile, name)
 	return err
-}
-
-func (p *PassthroughPodInterface) setInterfaceRoutes() error {
-	routes, err := Handler.RouteList(b.podNicLink, netlink.FAMILY_V4)
-	if err != nil {
-		log.Log.Reason(err).Errorf("failed to get routes for %s", b.podInterfaceName)
-		return err
-	}
-	if len(routes) == 0 {
-		return fmt.Errorf("No gateway address found in routes for %s", b.podInterfaceName)
-	}
-	b.vif.Gateway = routes[0].Gw
-	if len(routes) > 1 {
-		dhcpRoutes := filterPodNetworkRoutes(routes, b.vif)
-		b.vif.Routes = &dhcpRoutes
-	}
-	return nil
-}
-
-func (p *PassthroughPodInterface) createBridge() error {
-	// Create a bridge
-	bridge := &netlink.Bridge{
-		LinkAttrs: netlink.LinkAttrs{
-			Name: b.bridgeInterfaceName,
-		},
-	}
-	err := Handler.LinkAdd(bridge)
-	if err != nil {
-		log.Log.Reason(err).Errorf("failed to create a bridge")
-		return err
-	}
-
-	err = Handler.LinkSetMaster(b.podNicLink, bridge)
-	if err != nil {
-		log.Log.Reason(err).Errorf("failed to connect interface %s to bridge %s", b.podInterfaceName, bridge.Name)
-		return err
-	}
-
-	err = Handler.LinkSetUp(bridge)
-	if err != nil {
-		log.Log.Reason(err).Errorf("failed to bring link up for interface: %s", b.bridgeInterfaceName)
-		return err
-	}
-
-	// set fake ip on a bridge
-	fakeaddr, err := Handler.ParseAddr(fmt.Sprintf(bridgeFakeIP, b.podInterfaceNum))
-	if err != nil {
-		log.Log.Reason(err).Errorf("failed to bring link up for interface: %s", b.bridgeInterfaceName)
-		return err
-	}
-
-	if err := Handler.AddrAdd(bridge, fakeaddr); err != nil {
-		log.Log.Reason(err).Errorf("failed to set bridge IP")
-		return err
-	}
-
-	return nil
 }
 
 type BridgePodInterface struct {

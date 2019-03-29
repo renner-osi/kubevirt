@@ -152,7 +152,7 @@ func isSRIOVVmi(vmi *v1.VirtualMachineInstance) bool {
 
 func isPassthroughVmi(vmi *v1.VirtualMachineInstance) bool {
 	for _, iface := range vmi.Spec.Domain.Devices.Interfaces {
-		if iface.SRIOV != nil {
+		if iface.Passthrough != nil {
 			return true
 		}
 	}
