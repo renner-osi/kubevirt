@@ -26,6 +26,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"os/exec"
 
 	"github.com/vishvananda/netlink"
 
@@ -75,6 +76,7 @@ func (l *PodInterface) Plug(vmi *v1.VirtualMachineInstance, iface *v1.Interface,
 	if err != nil {
 		return err
 	}
+	log.Log.Reason(nil).Warningf("Driver binding is %+v", driver)
 
 	isExist, err := driver.loadCachedInterface(iface.Name)
 	if err != nil {
@@ -116,6 +118,8 @@ func getBinding(vmi *v1.VirtualMachineInstance, iface *v1.Interface, network *v1
 		return nil, err
 	}
 
+	log.Log.Reason(nil).Warningf("pod Interface Number is %+v", podInterfaceNum)
+
 	populateMacAddress := func(vif *VIF, iface *v1.Interface) error {
 		if iface.MacAddress != "" {
 			macAddress, err := net.ParseMAC(iface.MacAddress)
@@ -127,14 +131,6 @@ func getBinding(vmi *v1.VirtualMachineInstance, iface *v1.Interface, network *v1
 		return nil
 	}
 
-	if iface.Passthrough != nil {
-		vif := &VIF{Name: podInterfaceName}
-		return &PassthroughInterface{
-			iface: iface,
-			domain:              domain,
-			podInterfaceNum:     podInterfaceNum,
-			podInterfaceName:    podInterfaceName,
-	}
 	if iface.Bridge != nil {
 		vif := &VIF{Name: podInterfaceName}
 		populateMacAddress(vif, iface)
@@ -160,6 +156,17 @@ func getBinding(vmi *v1.VirtualMachineInstance, iface *v1.Interface, network *v1
 	}
 	if iface.Slirp != nil {
 		return &SlirpPodInterface{vmi: vmi, iface: iface, domain: domain, podInterfaceNum: podInterfaceNum}, nil
+	}
+	log.Log.Reason(nil).Warningf("bind iface %+v", iface)
+	if iface.Passthrough != nil {
+		log.Log.Reason(nil).Warningf("inside passthrough bind iface %+v", iface)
+		//vif := &VIF{Name: podInterfaceName}
+		return &PassthroughInterface{
+			iface:            iface,
+			domain:           domain,
+			podInterfaceNum:  podInterfaceNum,
+			podInterfaceName: podInterfaceName,
+		}, nil
 	}
 	return nil, fmt.Errorf("Not implemented")
 }
@@ -657,12 +664,14 @@ func (s *SlirpPodInterface) setCachedInterface(name string) error {
 }
 
 type PassthroughInterface struct {
-	iface               *v1.Interface
+	iface            *v1.Interface
 	podNicLink       netlink.Link
 	domain           *api.Domain
 	podInterfaceNum  int
 	podInterfaceName string
+	vtapIndex int
 }
+
 /*
 -netdev
 tap,fd=25,id=hostnet0
@@ -671,44 +680,146 @@ e1000,netdev=hostnet0,id=net0,mac=52:54:00:d0:46:47,bus=pci.0,addr=0x3
 */
 
 func (p *PassthroughInterface) decorateConfig() error {
+	//p.domain.Spec.Devices.Interfaces[p.podInterfaceNum].Type = "direct"
+	//p.domain.Spec.Devices.Interfaces[p.podInterfaceNum].Source = api.InterfaceSource{Device: p.podNicLink.Attrs().Name, Mode: "passthrough"}
+	//p.domain.Spec.Devices.Interfaces[p.podInterfaceNum].Model = &api.Model{Type: "virtio-net-pci"}
+	//p.domain.Spec.Devices.Interfaces[p.podInterfaceNum].Target = &api.InterfaceTarget{Device: "macvtap0"}
 	return nil
+	//log.Log.Reason(nil).Warningf("s.domain 1 %+v", s.domain)
+	//domainInterface.Type = "direct"
+	//log.Log.Reason(nil).Warningf("s.domain 2 %+v", s.domain)
+	//domainInterface.Source.Device = s.podNicLink.Attrs().Name
+	//log.Log.Reason(nil).Warningf("s.domain 3 %+v", s.domain)
+	//domainInterface.Source.Mode = "passthrough"
+	//log.Log.Reason(nil).Warningf("s.domain 4 %+v", s.domain)
 }
 func (p *PassthroughInterface) discoverPodNetworkInterface() error {
+	log.Log.Reason(nil).Warningf("p discover pod net int  %+v", p)
 	link, err := Handler.LinkByName(p.podInterfaceName)
 	if err != nil {
 		log.Log.Reason(err).Errorf("failed to get a link for interface: %s", p.podInterfaceName)
 		return err
 	}
 	p.podNicLink = link
+	log.Log.Reason(nil).Warningf("p podlink %+v", p.podNicLink)
 
+	// Create network interface
+	if p.domain.Spec.QEMUCmd == nil {
+		p.domain.Spec.QEMUCmd = &api.Commandline{}
+	}
 
+	if p.domain.Spec.QEMUCmd.QEMUArg == nil {
+		p.domain.Spec.QEMUCmd.QEMUArg = make([]api.Arg, 0)
+	}
+
+	//p.domain.Spec.QEMUCmd.QEMUArg = append(p.domain.Spec.QEMUCmd.QEMUArg, api.Arg{Value: "-device"})
 	return nil
-	// s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{Value: "-device"})
-	// return nil
 }
 func (s *PassthroughInterface) preparePodNetworkInterfaces() error {
 	/*
-		-netdev tap,script=no,id=hostnet0 -device e1000,netdev=hostnet0,id=veth1,mac=52:54:00:d0:46:47,bus=pci.0,addr=0x3 \
-	-netdev tap,script=no,id=hostnet1 -device e1000,netdev=hostnet1,id=veth3,mac=52:54:00:40:29:ae,bus=pci.0,addr=0x4 \
-	-netdev tap,script=no,id=hostnet2 -device e1000,netdev=hostnet2,id=veth4,mac=52:54:00:f7:90:ca,bus=pci.0,addr=0x5 	\
-	*/
-	interfaces := s.domain.Spec.Devices.Interfaces
-	domainInterface := interfaces[s.podInterfaceNum]
-	s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{Value: "-netdev"})})
-	s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{
-		Value: fmt.Sprintf("tap,script=no,id=%s", s.iface.Name),
-	})
-	s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{Value: "-device"})})
-	s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{
-		Value: fmt.Sprintf("%s,netdev=%s,id=%s", domainInterface.Model.Type, s.iface.Name, s.podInterfaceName),
-	})
+	-net nic,model=virtio,macaddr=$(cat /sys/class/net/macvtap0/address) \
+	-net tap,fd=3 3<>/dev/tap$(cat /sys/class/net/macvtap0/ifindex)
 
+	or
+
+			-netdev tap,script=no,id=hostnet0 -device e1000,netdev=hostnet0,id=veth1,mac=52:54:00:d0:46:47,bus=pci.0,addr=0x3 \
+		-netdev tap,script=no,id=hostnet1 -device e1000,netdev=hostnet1,id=veth3,mac=52:54:00:40:29:ae,bus=pci.0,addr=0x4 \
+		-netdev tap,script=no,id=hostnet2 -device e1000,netdev=hostnet2,id=veth4,mac=52:54:00:f7:90:ca,bus=pci.0,addr=0x5 	\
+		or
+		    <interface type='direct'>
+		      <mac address='52:54:00:d0:46:47'/>
+		      <source dev='veth1' mode='passthrough'/>
+		      <target dev='macvtap0'/>
+		      <model type='e1000'/>
+		      <alias name='net0'/>
+		      <address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/>
+		    </interface>
+	*/
+
+	la := netlink.NewLinkAttrs()
+	hostIfaceIndex := s.podNicLink.Attrs().Index
+	hostIfaceName := s.podNicLink.Attrs().Name
+	la.ParentIndex = hostIfaceIndex
+	la.Name = fmt.Sprintf("%s-mv", hostIfaceName)
+
+	macvtap := &netlink.Macvlan{LinkAttrs: la}
+	err := netlink.LinkAdd(macvtap)
+	if err != nil {
+		log.Log.Reason(err).Error("Failed to add new macvlan interface")
+	}
+
+	link, err := Handler.LinkByName(la.Name)
+	if err != nil {
+		log.Log.Reason(err).Errorf("failed to get a link for interface: %s", la.Name)
+		return err
+	}
+	s.vtapIndex = link.Attrs().Index
+	mac := link.Attrs().HardwareAddr.String()
+
+	interfaces := s.domain.Spec.Devices.Interfaces
+	//domainInterface := interfaces[s.podInterfaceNum]
+
+	//s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{Value: fmt.Sprintf("%s,netdev=%s", domainInterface.Model.Type, s.iface.Name)})
+	s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{Value: "-net"})
+	s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{Value: fmt.Sprintf("nic,model=virtio,macaddr=%s", mac)})
+	s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{Value: "-net"})
+	s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, api.Arg{Value: fmt.Sprintf("tap,fd=3 3%s/dev/tap%d", `<>`,s.vtapIndex)})
+
+	for _, cmd := range []string{ "mknod /dev/tap4 c 244 1", "chmod 666 /dev/tap4", }{
+		x, err := exec.Command("sh", "-c", cmd).CombinedOutput()
+		if err != nil {
+			log.Log.Reason(err).Errorf("failed to exec command %s ", cmd)
+			return err
+		}
+			log.Log.Reason(nil).Warning(string(x))
+	}
 	s.domain.Spec.Devices.Interfaces = append(interfaces[:s.podInterfaceNum], interfaces[s.podInterfaceNum+1:]...)
 	s.podInterfaceNum = len(s.domain.Spec.QEMUCmd.QEMUArg) - 1
+
+	//interfaces := s.domain.Spec.Devices.Interfaces
+	//log.Log.Reason(nil).Warningf("interfaces %+v", interfaces)
+	//log.Log.Reason(nil).Warningf("interfaceNum %+v", s.podInterfaceNum)
+
+	//log.Log.Reason(nil).Warningf("niclink %+v", s.podNicLink)
+
+	//i := interfaces[s.podInterfaceNum]
+	//log.Log.Reason(nil).Warningf("domainInterface %+v", i)
+
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.Address, i.Address)
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.Type, i.Type)
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.TrustGuestRxFilters,   i.TrustGuestRxFilters)
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.Source, i.Source)
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.Target, i.Target)
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.Model, i.Model)
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.MAC, i.MAC)
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.MTU, i.MTU)
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.BandWidth, i.BandWidth)
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.BootOrder, i.BootOrder)
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.LinkState, i.LinkState)
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.FilterRef, i.FilterRef)
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.Alias, i.Alias)
+	//log.Log.Reason(nil).Warningf("%T      %+v", 	i.Driver, i.Driver)
 
 	return nil
 }
 func (s *PassthroughInterface) loadCachedInterface(name string) (bool, error) {
+	var qemuArg api.Arg
+	interfaces := s.domain.Spec.Devices.Interfaces
+
+	isExist, err := readFromCachedFile(name, qemuArgCacheFile, &qemuArg)
+	if err != nil {
+		return false, err
+	}
+
+	if isExist {
+		// remove slirp interface from domain spec devices interfaces
+		interfaces = append(interfaces[:s.podInterfaceNum], interfaces[s.podInterfaceNum+1:]...)
+
+		// Add interface configuration to qemuArgs
+		s.domain.Spec.QEMUCmd.QEMUArg = append(s.domain.Spec.QEMUCmd.QEMUArg, qemuArg)
+		return true, nil
+	}
+
 	return false, nil
 }
 

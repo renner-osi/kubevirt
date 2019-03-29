@@ -26,7 +26,7 @@ rm -rf ${CMD_OUT_DIR}
 mkdir -p ${CMD_OUT_DIR}/virtctl
 
 # Build all binaries for amd64
-bazel build \
+bazel build --sandbox_debug \
     --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 \
     --workspace_status_command=./hack/print-workspace-status.sh \
     //cmd/...

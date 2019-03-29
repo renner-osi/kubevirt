@@ -1,0 +1,59 @@
+---
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: virt
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "virt"
+    }'
+
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: ovs
+  annotations:
+    kubernetes.io/description: |
+      This daemon set launches the Open vSwitch daemon.
+spec:
+  selector:
+    matchLabels:
+      app: ovs
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: ovs
+        component: network
+        type: infra
+    spec:
+      hostNetwork: true
+      hostPID: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: ovsvirt
+        image: onesourceintegrations/ovsvirt:devel
+        imagePullPolicy: Always
+        env:
+          - name: "REDIS_ADDRESS"
+            value: "redis.networkci.svc.packet.osi.io:6379"
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "50Mi"
+          limits:
+            cpu: "100m"
+            memory: "50Mi"
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: cnibin
+          mountPath: /host/opt/cni/bin
+
+      volumes:
+      - name: cnibin
+        hostPath:
+          path: /opt/cni/bin
