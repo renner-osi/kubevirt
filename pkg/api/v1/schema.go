@@ -873,7 +873,7 @@ type InterfaceBindingMethod struct {
 	Slirp       *InterfaceSlirp       `json:"slirp,omitempty"`
 	Masquerade  *InterfaceMasquerade  `json:"masquerade,omitempty"`
 	SRIOV       *InterfaceSRIOV       `json:"sriov,omitempty"`
-	Passthrough *InterfacePassthrough `json:"sriov,omitempty"`
+	Passthrough *InterfacePassthrough `json:"passthrough,omitempty"`
 }
 
 // ---

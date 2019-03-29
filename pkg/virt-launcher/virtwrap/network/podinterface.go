@@ -126,9 +126,10 @@ func getBinding(iface *v1.Interface, network *v1.Network, domain *api.Domain, po
 
 	if iface.Passthrough != nil {
 		return &PassthroughPodInterface{
-			iface:           iface,
-			domain:          domain,
-			podInterfaceNum: podInterfaceNum,
+			iface:            iface,
+			domain:           domain,
+			podInterfaceNum:  podInterfaceNum,
+			podInterfaceName: podInterfaceName,
 		}, nil
 	}
 	if iface.Bridge != nil {
@@ -159,19 +160,20 @@ func getBinding(iface *v1.Interface, network *v1.Network, domain *api.Domain, po
 }
 
 type PassthroughPodInterface struct {
-	iface           *v1.Interface
-	podNicLink      netlink.Link
-	domain          *api.Domain
-	podInterfaceNum int
+	iface            *v1.Interface
+	podNicLink       netlink.Link
+	domain           *api.Domain
+	podInterfaceNum  int
+	podInterfaceName string
 }
 
 func (p *PassthroughPodInterface) discoverPodNetworkInterface() error {
-	link, err := Handler.LinkByName(b.podInterfaceName)
+	link, err := Handler.LinkByName(p.podInterfaceName)
 	if err != nil {
-		log.Log.Reason(err).Errorf("failed to get a link for interface: %s", b.podInterfaceName)
+		log.Log.Reason(err).Errorf("failed to get a link for interface: %s", p.podInterfaceName)
 		return err
 	}
-	b.podNicLink = link
+	p.podNicLink = link
 
 	return nil
 }
@@ -191,7 +193,7 @@ func (p *PassthroughPodInterface) loadCachedInterface(name string) (bool, error)
 }
 
 func (p *PassthroughPodInterface) setCachedInterface(name string) error {
-	return err
+	return nil
 }
 
 type BridgePodInterface struct {

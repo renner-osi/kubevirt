@@ -158,14 +158,14 @@ func isPassthroughVmi(vmi *v1.VirtualMachineInstance) bool {
 	return false
 }
 
-// func IsCPUNodeDiscoveryEnabled(store cache.Store) bool {
-// 	if value, err := getConfigMapEntry(store, virtconfig.FeatureGatesKey); err != nil {
-// 		return false
-// 	} else if strings.Contains(value, virtconfig.CPUNodeDiscoveryGate) {
-// 		return true
-// 	}
-// 	return false
-// }
+func IsCPUNodeDiscoveryEnabled(store cache.Store) bool {
+	// if value, err := getConfigMapEntry(store, virtconfig.FeatureGatesKey); err != nil {
+	// 	return false
+	// } else if strings.Contains(value, virtconfig.CPUNodeDiscoveryGate) {
+	// 	return true
+	// }
+	return false
+}
 
 func CPUModelLabelFromCPUModel(vmi *v1.VirtualMachineInstance) (label string, err error) {
 	if vmi.Spec.Domain.CPU == nil || vmi.Spec.Domain.CPU.Model == "" {
